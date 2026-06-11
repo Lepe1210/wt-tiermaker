@@ -133,7 +133,11 @@ async function loadCategory(category) {
       const csv = await response.text();
       state.allVehicles[category] = parseCsv(csv)
         .map(normalizeVehicle)
-        .filter((vehicle) => vehicle.enabled !== "FALSE" && vehicle.name);
+        .filter((vehicle) => !["FALSE", "0", "NO", "N"].includes(vehicle.enabled) && vehicle.name);
+
+      const withImages = state.allVehicles[category].filter((vehicle) => vehicle.image);
+      console.info(`[WT Tiermaker] ${category}: ${state.allVehicles[category].length}개 로드, 이미지 URL ${withImages.length}개`);
+      console.info("[WT Tiermaker] 이미지 샘플:", withImages.slice(0, 5).map((vehicle) => ({ name: vehicle.name, image: vehicle.image })));
     } catch (error) {
       console.error(error);
       showPoolNotice("CSV를 불러오지 못했어. 구글시트 게시 링크나 인터넷 연결을 확인해줘.");
@@ -181,7 +185,7 @@ function parseCsv(csvText) {
     rows.push(row);
   }
 
-  const headers = rows.shift()?.map((header) => header.trim()) || [];
+  const headers = rows.shift()?.map((header) => header.trim().toLowerCase()) || [];
   return rows
     .filter((items) => items.some((value) => value.trim() !== ""))
     .map((items) => Object.fromEntries(headers.map((header, index) => [header, items[index]?.trim() || ""])));
@@ -199,8 +203,8 @@ function normalizeVehicle(item) {
     nation: cleanValue(item.nation),
     type: cleanValue(item.type),
     tag: cleanValue(item.tag || item.tags || "regular"),
-    image: item.image || "",
-    enabled: String(item.enabled || "TRUE").toUpperCase()
+    image: pickImageValue(item),
+    enabled: String(item.enabled || "TRUE").trim().toUpperCase()
   };
 }
 
@@ -214,6 +218,21 @@ function makeId(category, nation, name) {
 
 function cleanValue(value) {
   return String(value || "").trim();
+}
+
+function pickImageValue(item) {
+  return cleanValue(
+    item.image ||
+    item.img ||
+    item.icon ||
+    item.thumbnail ||
+    item.thumb ||
+    item.picture ||
+    item.image_url ||
+    item.thumbnail_url ||
+    item.photo ||
+    ""
+  );
 }
 
 function populateFilters() {
@@ -302,22 +321,23 @@ function createVehicleCard(vehicle) {
   if (imageUrl) {
     image.alt = vehicle.name;
 
-    // 중요: load/error 이벤트를 src 지정 전에 붙여야 캐시된 이미지도 정상 표시됨.
+    // 먼저 이미지 영역을 표시하고, 실패하면 다시 WT fallback으로 돌림.
+    // 이렇게 하면 load 이벤트를 놓치거나 브라우저 캐시 타이밍이 꼬여도 이미지가 숨겨지지 않음.
+    node.classList.add("has-image");
+
     image.addEventListener("load", () => {
       node.classList.add("has-image");
     });
 
     image.addEventListener("error", () => {
+      image.removeAttribute("src");
       node.classList.remove("has-image");
       console.warn("이미지 로드 실패:", vehicle.name, imageUrl);
     });
 
     image.src = imageUrl;
-
-    // 혹시 이미 로드 완료 상태로 들어온 경우를 한 번 더 보정.
-    if (image.complete && image.naturalWidth > 0) {
-      node.classList.add("has-image");
-    }
+  } else {
+    console.debug("이미지 URL 없음:", vehicle.name, vehicle.id);
   }
 
   node.addEventListener("dragstart", (event) => {
