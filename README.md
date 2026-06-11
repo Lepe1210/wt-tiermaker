@@ -34,3 +34,9 @@ id,name,category,nation,type,tag,image,enabled
 ```txt
 https://사용자이름.github.io/저장소이름/
 ```
+
+
+## v1.3
+- F 아래에 `Non` 제외 행 추가
+- 장비 카드를 우클릭하면 바로 `Non` 행으로 이동
+- 기존 저장 데이터에 `Non` 행이 없어도 자동 보정

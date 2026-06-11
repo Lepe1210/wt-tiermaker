@@ -4,7 +4,7 @@ const SHEET_URLS = {
   naval: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSw25dQg94ZqXKwPWcUVnhj9ztKTLf8Sz5h0m2qnXY7z9oN0k_bneR38hiuGnTdRXUXwsLUplrQAO8V/pub?gid=1471470287&single=true&output=csv"
 };
 
-const TIERS = ["S", "A", "B", "C", "D", "F"];
+const TIERS = ["S", "A", "B", "C", "D", "F", "Non"];
 const STORAGE_KEY = "wt-tier-lab-state-v1";
 
 const tagLabels = {
@@ -112,6 +112,9 @@ function buildTierBoard() {
     label.className = "tier-label";
     label.dataset.tier = tier;
     label.textContent = tier;
+    if (tier === "Non") {
+      label.title = "우클릭으로 보내는 제외 영역";
+    }
 
     const drop = document.createElement("div");
     drop.className = "tier-drop dropzone";
@@ -262,6 +265,7 @@ function uniqueValues(items, key) {
 }
 
 function render() {
+  ensureCategoryPlacement(state.category);
   clearDropzones();
   const vehicles = state.allVehicles[state.category];
   const visibleVehicles = vehicles.filter(matchesFilters);
@@ -340,6 +344,14 @@ function createVehicleCard(vehicle) {
     console.debug("이미지 URL 없음:", vehicle.name, vehicle.id);
   }
 
+  node.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    moveVehicle(vehicle.category, vehicle.id, "Non");
+    render();
+  });
+
+  node.title = "드래그해서 티어 배치 / 우클릭하면 Non으로 이동";
+
   node.addEventListener("dragstart", (event) => {
     node.classList.add("dragging");
     event.dataTransfer.setData("text/plain", JSON.stringify({ id: vehicle.id, category: vehicle.category }));
@@ -377,18 +389,27 @@ function wireDropzone(zone) {
 }
 
 function moveVehicle(category, id, targetTier) {
-  if (!state.placements[category]) state.placements[category] = makeEmptyPlacement();
+  ensureCategoryPlacement(category);
+
   Object.keys(state.placements[category]).forEach((tier) => {
     state.placements[category][tier] = state.placements[category][tier].filter((itemId) => itemId !== id);
   });
 
   if (targetTier !== "pool") {
+    if (!state.placements[category][targetTier]) state.placements[category][targetTier] = [];
     state.placements[category][targetTier].push(id);
   }
 }
 
 function makeEmptyPlacement() {
   return Object.fromEntries(TIERS.map((tier) => [tier, []]));
+}
+
+function ensureCategoryPlacement(category) {
+  if (!state.placements[category]) state.placements[category] = makeEmptyPlacement();
+  TIERS.forEach((tier) => {
+    if (!Array.isArray(state.placements[category][tier])) state.placements[category][tier] = [];
+  });
 }
 
 function saveState(showAlert = false) {

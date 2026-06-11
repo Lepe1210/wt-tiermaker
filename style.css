@@ -185,6 +185,10 @@ input, select {
 .tier-label[data-tier="C"] { color: #75b9ff; }
 .tier-label[data-tier="D"] { color: #b5a5ff; }
 .tier-label[data-tier="F"] { color: #ff7777; }
+.tier-label[data-tier="Non"] { color: #9aa9b8; font-size: 1.35rem; }
+.tier-row:has(.tier-label[data-tier="Non"]) .tier-drop {
+  background: rgba(255,255,255,0.025);
+}
 
 .tier-drop {
   min-height: 104px;
