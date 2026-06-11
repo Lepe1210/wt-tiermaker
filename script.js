@@ -146,6 +146,7 @@ async function loadCategory(category) {
         .filter((vehicle) => !["FALSE", "0", "NO", "N"].includes(vehicle.enabled) && vehicle.name);
 
       await enrichMetaFromApi(category);
+      state.allVehicles[category].sort(compareVehicles);
 
       const withImages = state.allVehicles[category].filter((vehicle) => vehicle.image);
       console.info(`[WT Tiermaker] ${category}: ${state.allVehicles[category].length}개 로드, 이미지 URL ${withImages.length}개`);
@@ -204,22 +205,45 @@ function parseCsv(csvText) {
 }
 
 function normalizeVehicle(item) {
-  const category = (item.category || state.category || "").toLowerCase();
-  const name = item.name || "";
-  const id = item.id || makeId(category, item.nation, name);
+  const category = (item.category || item["장비군"] || state.category || "").toLowerCase();
+  const name = item.name || item["장비명"] || item["이름"] || "";
+  const id = item.id || makeId(category, item.nation || item["국가"], name);
+
+  const rankValue = firstValue(item, [
+    "rank", "vehicle_rank", "vehicle rank", "tier", "rk",
+    "랭크", "티어"
+  ]);
+
+  const brValue = firstValue(item, [
+    "br_rb", "rb_br", "rb br", "br rb", "rb",
+    "realistic", "realistic_br", "realistic br",
+    "battle_rating_rb", "battle rating rb",
+    "battle_rating_realistic", "battle rating realistic",
+    "br", "rbbr",
+    "리얼br", "리얼 br", "rbbr", "br리얼", "br 리얼"
+  ]);
 
   return {
     id,
     name,
     category,
-    nation: cleanValue(item.nation),
-    type: cleanValue(item.type),
-    tag: cleanValue(item.tag || item.tags || "regular"),
-    rank: normalizeRank(item.rank || item.vehicle_rank || item.tier || item.rk || ""),
-    brRb: normalizeBr(item.br_rb || item.rb || item.realistic || item.realistic_br || item.battle_rating_rb || item.battle_rating_realistic || item.br || ""),
+    nation: cleanValue(item.nation || item["국가"]),
+    type: cleanValue(item.type || item["타입"] || item["종류"]),
+    tag: cleanValue(item.tag || item.tags || item["태그"] || "regular"),
+    rank: normalizeRank(rankValue),
+    brRb: normalizeBr(brValue),
     image: pickImageValue(item),
-    enabled: String(item.enabled || "TRUE").trim().toUpperCase()
+    enabled: String(item.enabled || item["사용"] || item["표시"] || "TRUE").trim().toUpperCase()
   };
+}
+
+function firstValue(item, keys) {
+  for (const key of keys) {
+    const normalizedKey = key.toLowerCase();
+    if (item[key] !== undefined && String(item[key]).trim() !== "") return item[key];
+    if (item[normalizedKey] !== undefined && String(item[normalizedKey]).trim() !== "") return item[normalizedKey];
+  }
+  return "";
 }
 
 async function enrichMetaFromApi(category) {
@@ -419,18 +443,11 @@ function cleanValue(value) {
 }
 
 function pickImageValue(item) {
-  return cleanValue(
-    item.image ||
-    item.img ||
-    item.icon ||
-    item.thumbnail ||
-    item.thumb ||
-    item.picture ||
-    item.image_url ||
-    item.thumbnail_url ||
-    item.photo ||
-    ""
-  );
+  return cleanValue(firstValue(item, [
+    "image", "img", "icon", "thumbnail", "thumb", "picture",
+    "image_url", "image url", "thumbnail_url", "thumbnail url", "photo",
+    "이미지", "사진", "썸네일"
+  ]));
 }
 
 function populateFilters() {
@@ -461,7 +478,7 @@ function populateRankFilter(ranks) {
   if (!validRanks.length) {
     const hint = document.createElement("span");
     hint.className = "rank-hint";
-    hint.textContent = "rank 열이 없으면 API에서 자동 보강을 시도해. 안 뜨면 새로고침하거나 잠시 뒤 다시 시도해줘.";
+    hint.textContent = "rank 열이 있으면 시트 값을 우선 사용하고, 없으면 API 자동 보강을 시도해. 수동 입력은 I~IX 또는 1~9 모두 가능해.";
     els.rankFilter.append(hint);
     return;
   }
@@ -577,6 +594,61 @@ function formatRank(value) {
   return value ? `Rank ${value}` : "";
 }
 
+function compareVehicles(a, b) {
+  return compareNations(a.nation, b.nation)
+    || compareRanks(a.rank, b.rank)
+    || compareBrs(a.brRb, b.brRb)
+    || compareTypes(a.type, b.type)
+    || compareTags(a.tag, b.tag)
+    || String(a.name || "").localeCompare(String(b.name || ""), "ko");
+}
+
+function compareNations(a, b) {
+  const order = {
+    usa: 1, us: 1, united_states: 1, america: 1,
+    germany: 2, ger: 2,
+    ussr: 3, soviet_union: 3, russia: 3,
+    britain: 4, uk: 4, great_britain: 4, united_kingdom: 4,
+    japan: 5,
+    china: 6, cn: 6,
+    italy: 7,
+    france: 8,
+    sweden: 9,
+    israel: 10
+  };
+  const ak = normalizeSortKey(a);
+  const bk = normalizeSortKey(b);
+  const ao = order[ak] || 999;
+  const bo = order[bk] || 999;
+  return ao - bo || String(a || "").localeCompare(String(b || ""), "ko");
+}
+
+function compareTypes(a, b) {
+  const order = {
+    mbt: 1, medium_tank: 2, heavy_tank: 3, light_tank: 4, tank_destroyer: 5, spaa: 6, ifv: 7,
+    fighter: 1, interceptor: 2, strike_aircraft: 3, attacker: 4, bomber: 5, helicopter: 6,
+    destroyer: 1, cruiser: 2, battleship: 3, battlecruiser: 4, coastal: 5, bluewater: 6, boat: 7
+  };
+  const ak = normalizeSortKey(a);
+  const bk = normalizeSortKey(b);
+  const ao = order[ak] || 999;
+  const bo = order[bk] || 999;
+  return ao - bo || String(a || "").localeCompare(String(b || ""), "ko");
+}
+
+function compareTags(a, b) {
+  const order = { regular: 1, premium: 2, squadron: 3, event: 4 };
+  const ak = normalizeSortKey(a);
+  const bk = normalizeSortKey(b);
+  const ao = order[ak] || 999;
+  const bo = order[bk] || 999;
+  return ao - bo || String(a || "").localeCompare(String(b || ""), "ko");
+}
+
+function normalizeSortKey(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
 function fillSelect(select, values, defaultText, labelFn) {
   const previous = select.value;
   select.innerHTML = `<option value="all">${defaultText}</option>`;
@@ -600,7 +672,7 @@ function render() {
   ensureCategoryPlacement(state.category);
   clearDropzones();
   const vehicles = state.allVehicles[state.category];
-  const visibleVehicles = vehicles.filter(matchesFilters);
+  const visibleVehicles = vehicles.filter(matchesFilters).sort(compareVehicles);
   const placedIds = new Set();
 
   TIERS.forEach((tier) => {
