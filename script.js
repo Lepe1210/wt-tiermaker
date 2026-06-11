@@ -297,11 +297,27 @@ function createVehicleCard(vehicle) {
   node.querySelector(".vehicle-sub").textContent = [formatNation(vehicle.nation), vehicle.type, formatTag(vehicle.tag)].filter(Boolean).join(" · ");
 
   const image = node.querySelector(".vehicle-image");
-  if (vehicle.image) {
-    image.src = vehicle.image;
+  const imageUrl = normalizeImageUrl(vehicle.image);
+
+  if (imageUrl) {
     image.alt = vehicle.name;
-    image.addEventListener("load", () => node.classList.add("has-image"));
-    image.addEventListener("error", () => node.classList.remove("has-image"));
+
+    // 중요: load/error 이벤트를 src 지정 전에 붙여야 캐시된 이미지도 정상 표시됨.
+    image.addEventListener("load", () => {
+      node.classList.add("has-image");
+    });
+
+    image.addEventListener("error", () => {
+      node.classList.remove("has-image");
+      console.warn("이미지 로드 실패:", vehicle.name, imageUrl);
+    });
+
+    image.src = imageUrl;
+
+    // 혹시 이미 로드 완료 상태로 들어온 경우를 한 번 더 보정.
+    if (image.complete && image.naturalWidth > 0) {
+      node.classList.add("has-image");
+    }
   }
 
   node.addEventListener("dragstart", (event) => {
@@ -430,6 +446,22 @@ function resetFilters() {
   els.nationFilter.value = "all";
   els.typeFilter.value = "all";
   els.tagFilter.value = "all";
+}
+
+function normalizeImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  // CSV 안에 따옴표가 같이 들어온 경우 제거
+  const cleaned = raw.replace(/^"|"$/g, "");
+
+  // 프로토콜 생략 URL: //example.com/a.png
+  if (cleaned.startsWith("//")) return `${location.protocol}${cleaned}`;
+
+  // WT Vehicles API가 상대 경로를 준 경우 보정
+  if (cleaned.startsWith("/")) return `https://wtvehiclesapi.duckdns.org${cleaned}`;
+
+  return cleaned;
 }
 
 function formatTag(value) {
