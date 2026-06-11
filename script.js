@@ -6,6 +6,9 @@ const SHEET_URLS = {
 
 const TIERS = ["S", "A", "B", "C", "D", "F", "Non"];
 const STORAGE_KEY = "wt-tier-lab-state-v1";
+const VEHICLE_API_BASE = "https://wtvehiclesapi.duckdns.org/api/vehicles";
+
+let apiMetaPromise = null;
 
 const tagLabels = {
   regular: "정규",
@@ -36,7 +39,8 @@ const state = {
     nation: "all",
     type: "all",
     tag: "all",
-    ranks: []
+    ranks: [],
+    brs: []
   }
 };
 
@@ -50,6 +54,7 @@ const els = {
   typeFilter: document.querySelector("#typeFilter"),
   tagFilter: document.querySelector("#tagFilter"),
   rankFilter: document.querySelector("#rankFilter"),
+  brFilter: document.querySelector("#brFilter"),
   countText: document.querySelector("#countText"),
   saveBtn: document.querySelector("#saveBtn"),
   loadBtn: document.querySelector("#loadBtn"),
@@ -140,6 +145,8 @@ async function loadCategory(category) {
         .map(normalizeVehicle)
         .filter((vehicle) => !["FALSE", "0", "NO", "N"].includes(vehicle.enabled) && vehicle.name);
 
+      await enrichMetaFromApi(category);
+
       const withImages = state.allVehicles[category].filter((vehicle) => vehicle.image);
       console.info(`[WT Tiermaker] ${category}: ${state.allVehicles[category].length}개 로드, 이미지 URL ${withImages.length}개`);
       console.info("[WT Tiermaker] 이미지 샘플:", withImages.slice(0, 5).map((vehicle) => ({ name: vehicle.name, image: vehicle.image })));
@@ -209,9 +216,194 @@ function normalizeVehicle(item) {
     type: cleanValue(item.type),
     tag: cleanValue(item.tag || item.tags || "regular"),
     rank: normalizeRank(item.rank || item.vehicle_rank || item.tier || item.rk || ""),
+    brRb: normalizeBr(item.br_rb || item.rb || item.realistic || item.realistic_br || item.battle_rating_rb || item.battle_rating_realistic || item.br || ""),
     image: pickImageValue(item),
     enabled: String(item.enabled || "TRUE").trim().toUpperCase()
   };
+}
+
+async function enrichMetaFromApi(category) {
+  const vehicles = state.allVehicles[category] || [];
+  if (!vehicles.length || vehicles.every((vehicle) => vehicle.rank && vehicle.brRb)) return;
+
+  try {
+    const apiMeta = await getApiMeta();
+    let rankMatched = 0;
+    let brMatched = 0;
+
+    vehicles.forEach((vehicle) => {
+      const api = findApiVehicle(apiMeta, vehicle);
+
+      if (!vehicle.rank) {
+        const rank = normalizeRank(extractApiRank(api));
+        if (rank) {
+          vehicle.rank = rank;
+          rankMatched += 1;
+        }
+      }
+
+      if (!vehicle.brRb) {
+        const br = normalizeBr(extractApiBrRb(api));
+        if (br) {
+          vehicle.brRb = br;
+          brMatched += 1;
+        }
+      }
+    });
+
+    console.info(`[WT Tiermaker] ${category}: API rank 자동 보강 ${rankMatched}/${vehicles.length}개, RB BR 자동 보강 ${brMatched}/${vehicles.length}개`);
+  } catch (error) {
+    console.warn("[WT Tiermaker] API 자동 보강 실패. 시트의 rank/br_rb 열만 사용함.", error);
+  }
+}
+
+function getApiMeta() {
+  if (!apiMetaPromise) apiMetaPromise = fetchApiMeta();
+  return apiMetaPromise;
+}
+
+async function fetchApiMeta() {
+  const byId = new Map();
+  const byName = new Map();
+
+  for (let page = 0; page < 80; page += 1) {
+    const url = `${VEHICLE_API_BASE}?limit=200&page=${page}&excludeEventVehicles=false&excludeKillstreak=true`;
+    const response = await fetch(url, { cache: "force-cache" });
+    if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+
+    const data = await response.json();
+    const items = Array.isArray(data) ? data : (data.vehicles || data.items || data.results || []);
+    if (!items.length) break;
+
+    items.forEach((item) => {
+      const ids = [item.identifier, item.id, item.intname, item.unit_id, item.unitName, item.unit_name]
+        .filter(Boolean)
+        .map((value) => String(value).trim());
+      ids.forEach((id) => byId.set(id.toLowerCase(), item));
+
+      const names = [item.name, item.identifier, item.wiki_name, item.wikiname, item.title]
+        .filter(Boolean)
+        .map((value) => normalizeNameKey(value));
+      names.forEach((name) => byName.set(name, item));
+    });
+
+    if (items.length < 200) break;
+  }
+
+  console.info(`[WT Tiermaker] API 메타데이터 로드: id ${byId.size} / name ${byName.size}`);
+  return { byId, byName };
+}
+
+function findApiVehicle(apiMeta, vehicle) {
+  const idKey = String(vehicle.id || "").trim().toLowerCase();
+  if (apiMeta.byId.has(idKey)) return apiMeta.byId.get(idKey);
+
+  const nameKey = normalizeNameKey(vehicle.name);
+  if (apiMeta.byName.has(nameKey)) return apiMeta.byName.get(nameKey);
+
+  return null;
+}
+
+function normalizeNameKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[()]/g, "")
+    .replace(/[^a-z0-9가-힣]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractApiRank(api) {
+  if (!api) return "";
+  return api.rank ||
+    api.vehicle_rank ||
+    api.vehicleRank ||
+    api.tier ||
+    api.level ||
+    api.rank_number ||
+    api.rankNumber ||
+    api?.battle_rating?.rank ||
+    api?.metadata?.rank ||
+    "";
+}
+
+function extractApiBrRb(api) {
+  if (!api) return "";
+
+  const candidates = [
+    api.br_rb,
+    api.rb,
+    api.realistic,
+    api.realistic_br,
+    api.battle_rating_rb,
+    api.battleRatingRb,
+    api.battle_rating_realistic,
+    api?.br?.rb,
+    api?.br?.realistic,
+    api?.br?.Realistic,
+    api?.battle_rating?.rb,
+    api?.battle_rating?.realistic,
+    api?.battleRating?.rb,
+    api?.battleRating?.realistic,
+    api?.battle_ratings?.rb,
+    api?.battle_ratings?.realistic,
+    api?.battleRatings?.rb,
+    api?.battleRatings?.realistic,
+    api?.rb_br,
+    api?.rbBr
+  ];
+
+  for (const value of candidates) {
+    const br = normalizeBr(value);
+    if (br) return br;
+  }
+
+  // API마다 Battle Rating을 배열로 주는 경우가 있어서 RB/Realistic 키워드도 탐색함.
+  const deep = findBrByKey(api);
+  return normalizeBr(deep);
+}
+
+function findBrByKey(value, depth = 0) {
+  if (!value || depth > 4) return "";
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (item && typeof item === "object") {
+        const mode = String(item.mode || item.name || item.type || item.difficulty || item.game_mode || item.gameMode || "").toLowerCase();
+        if (["rb", "realistic", "realistic battles"].includes(mode)) {
+          const br = item.value ?? item.br ?? item.battle_rating ?? item.battleRating ?? item.rating;
+          if (normalizeBr(br)) return br;
+        }
+      }
+      const nested = findBrByKey(item, depth + 1);
+      if (nested) return nested;
+    }
+    return "";
+  }
+
+  if (typeof value !== "object") return "";
+
+  for (const [key, inner] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z]/g, "");
+    if (normalizedKey === "rb" || normalizedKey === "realistic" || normalizedKey === "realisticbr" || normalizedKey === "brrb") {
+      const br = normalizeBr(inner);
+      if (br) return br;
+      if (inner && typeof inner === "object") {
+        const nestedValue = inner.value ?? inner.br ?? inner.battle_rating ?? inner.battleRating ?? inner.rating;
+        if (normalizeBr(nestedValue)) return nestedValue;
+      }
+    }
+  }
+
+  for (const inner of Object.values(value)) {
+    if (inner && typeof inner === "object") {
+      const nested = findBrByKey(inner, depth + 1);
+      if (nested) return nested;
+    }
+  }
+
+  return "";
 }
 
 function makeId(category, nation, name) {
@@ -247,6 +439,7 @@ function populateFilters() {
   fillSelect(els.typeFilter, uniqueValues(vehicles, "type"), "전체", (value) => value || "미분류");
   fillSelect(els.tagFilter, uniqueValues(vehicles, "tag"), "전체", formatTag);
   populateRankFilter(uniqueValues(vehicles, "rank"));
+  populateBrFilter(uniqueValues(vehicles, "brRb"));
 }
 
 
@@ -268,7 +461,7 @@ function populateRankFilter(ranks) {
   if (!validRanks.length) {
     const hint = document.createElement("span");
     hint.className = "rank-hint";
-    hint.textContent = "시트에 rank 열을 추가하면 I~VIII 랭크 필터가 생겨.";
+    hint.textContent = "rank 열이 없으면 API에서 자동 보강을 시도해. 안 뜨면 새로고침하거나 잠시 뒤 다시 시도해줘.";
     els.rankFilter.append(hint);
     return;
   }
@@ -289,6 +482,75 @@ function populateRankFilter(ranks) {
     });
     els.rankFilter.append(button);
   });
+}
+
+function populateBrFilter(brs) {
+  els.brFilter.innerHTML = "";
+
+  const validBrs = brs.filter(Boolean).sort(compareBrs);
+  const allButton = document.createElement("button");
+  allButton.type = "button";
+  allButton.className = `rank-chip ${state.filters.brs.length ? "" : "active"}`;
+  allButton.textContent = "전체";
+  allButton.addEventListener("click", () => {
+    state.filters.brs = [];
+    populateBrFilter(validBrs);
+    render();
+  });
+  els.brFilter.append(allButton);
+
+  if (!validBrs.length) {
+    const hint = document.createElement("span");
+    hint.className = "rank-hint";
+    hint.textContent = "RB BR 정보가 없으면 API에서 자동 보강을 시도해. 안 뜨면 새로고침하거나 잠시 뒤 다시 시도해줘.";
+    els.brFilter.append(hint);
+    return;
+  }
+
+  validBrs.forEach((br) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `rank-chip ${state.filters.brs.includes(br) ? "active" : ""}`;
+    button.textContent = br;
+    button.title = `RB BR ${br}`;
+    button.addEventListener("click", () => {
+      if (state.filters.brs.includes(br)) {
+        state.filters.brs = state.filters.brs.filter((item) => item !== br);
+      } else {
+        state.filters.brs = [...state.filters.brs, br].sort(compareBrs);
+      }
+      populateBrFilter(validBrs);
+      render();
+    });
+    els.brFilter.append(button);
+  });
+}
+
+function normalizeBr(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const nested = value.value ?? value.br ?? value.battle_rating ?? value.battleRating ?? value.rating ?? "";
+    return normalizeBr(nested);
+  }
+
+  const raw = String(value).trim();
+  if (!raw || raw === "-" || raw.toLowerCase() === "null" || raw.toLowerCase() === "undefined") return "";
+
+  const match = raw.replace(",", ".").match(/\d+(?:\.\d+)?/);
+  if (!match) return "";
+
+  const num = Number(match[0]);
+  if (!Number.isFinite(num) || num <= 0) return "";
+  return num.toFixed(1);
+}
+
+function compareBrs(a, b) {
+  return Number(a) - Number(b) || String(a).localeCompare(String(b));
+}
+
+function formatBr(value) {
+  const br = normalizeBr(value);
+  return br ? `BR ${br}` : "";
 }
 
 function normalizeRank(value) {
@@ -380,6 +642,7 @@ function matchesFilters(vehicle) {
   if (state.filters.type !== "all" && vehicle.type !== state.filters.type) return false;
   if (state.filters.tag !== "all" && vehicle.tag !== state.filters.tag) return false;
   if (state.filters.ranks.length && !state.filters.ranks.includes(vehicle.rank)) return false;
+  if (state.filters.brs.length && !state.filters.brs.includes(vehicle.brRb)) return false;
   return true;
 }
 
@@ -388,7 +651,7 @@ function createVehicleCard(vehicle) {
   node.dataset.id = vehicle.id;
   node.dataset.category = vehicle.category;
   node.querySelector(".vehicle-name").textContent = vehicle.name;
-  node.querySelector(".vehicle-sub").textContent = [formatNation(vehicle.nation), formatRank(vehicle.rank), vehicle.type, formatTag(vehicle.tag)].filter(Boolean).join(" · ");
+  node.querySelector(".vehicle-sub").textContent = [formatNation(vehicle.nation), formatRank(vehicle.rank), formatBr(vehicle.brRb), vehicle.type, formatTag(vehicle.tag)].filter(Boolean).join(" · ");
 
   const image = node.querySelector(".vehicle-image");
   const imageUrl = normalizeImageUrl(vehicle.image);
@@ -553,7 +816,7 @@ function importJson(event) {
 }
 
 function resetFilters() {
-  state.filters = { search: "", nation: "all", type: "all", tag: "all", ranks: [] };
+  state.filters = { search: "", nation: "all", type: "all", tag: "all", ranks: [], brs: [] };
   els.searchInput.value = "";
   els.nationFilter.value = "all";
   els.typeFilter.value = "all";

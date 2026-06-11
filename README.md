@@ -25,3 +25,21 @@ id,name,category,nation,type,tag,rank,image,enabled
 ## 배포
 
 GitHub Pages에서 `main` 브랜치의 `/root`를 배포 대상으로 설정하면 됩니다.
+
+
+## v1.5 변경점
+- 시트에 `rank` 열이 없어도 War Thunder Vehicles API에서 랭크를 자동 보강합니다.
+- 시트에 직접 `rank` 열이 있으면 그 값을 우선 사용합니다.
+
+
+## v1.6
+
+- War Thunder Vehicles API에서 장비 id 기준으로 Rank와 RB BR을 자동 보강합니다.
+- 시트에 `rank` 또는 `br_rb` 열이 있으면 시트 값을 우선 사용합니다.
+- RB 기준만 사용합니다. AB/SB BR은 표시하지 않습니다.
+- 카드에는 `Rank`와 `BR`이 함께 표시됩니다.
+
+
+## v1.7
+
+- Header notice added: BR/rank data may contain errors.
