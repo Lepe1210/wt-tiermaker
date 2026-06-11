@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WT Tier Lab</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">War Thunder Tiermaker</p>
+      <h1>WT Tier Lab</h1>
+      <p class="subtitle">구글시트 기반 워썬더 장비 티어표 제작기</p>
+    </div>
+    <div class="header-actions">
+      <button id="saveBtn" class="ghost">저장</button>
+      <button id="loadBtn" class="ghost">불러오기</button>
+      <button id="resetBtn" class="danger">초기화</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="controls panel">
+      <div class="mode-tabs" role="tablist" aria-label="장비군 선택">
+        <button class="mode-tab active" data-category="ground">지상</button>
+        <button class="mode-tab" data-category="air">공중</button>
+        <button class="mode-tab" data-category="naval">해상</button>
+      </div>
+
+      <div class="filter-grid">
+        <label>
+          검색
+          <input id="searchInput" type="search" placeholder="장비명 검색" autocomplete="off" />
+        </label>
+        <label>
+          국가
+          <select id="nationFilter">
+            <option value="all">전체</option>
+          </select>
+        </label>
+        <label>
+          타입
+          <select id="typeFilter">
+            <option value="all">전체</option>
+          </select>
+        </label>
+        <label>
+          태그
+          <select id="tagFilter">
+            <option value="all">전체</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="mini-actions">
+        <button id="exportBtn">티어표 JSON 내보내기</button>
+        <label class="import-label">
+          JSON 가져오기
+          <input id="importInput" type="file" accept="application/json" />
+        </label>
+      </div>
+    </section>
+
+    <section class="tier-panel panel" aria-label="티어표 영역">
+      <div id="tierBoard" class="tier-board"></div>
+    </section>
+
+    <section class="pool-panel panel">
+      <div class="pool-header">
+        <h2>장비 풀</h2>
+        <span id="countText">0개</span>
+      </div>
+      <div id="vehiclePool" class="vehicle-pool dropzone" data-tier="pool"></div>
+    </section>
+  </main>
+
+  <template id="vehicleCardTemplate">
+    <article class="vehicle-card" draggable="true">
+      <div class="thumb-wrap">
+        <img class="vehicle-image" alt="" loading="lazy" />
+        <div class="fallback-thumb">WT</div>
+      </div>
+      <div class="vehicle-meta">
+        <strong class="vehicle-name"></strong>
+        <span class="vehicle-sub"></span>
+      </div>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
