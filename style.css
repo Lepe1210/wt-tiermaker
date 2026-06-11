@@ -349,3 +349,39 @@ input, select {
     height: 46px;
   }
 }
+
+.rank-filter-block {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.rank-filter-title {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.rank-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.rank-chip {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+}
+
+.rank-chip.active {
+  background: var(--accent);
+  color: #17120a;
+  border-color: var(--accent);
+  font-weight: 800;
+}
+
+.rank-hint {
+  color: var(--muted);
+  font-size: 0.86rem;
+}

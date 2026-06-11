@@ -35,7 +35,8 @@ const state = {
     search: "",
     nation: "all",
     type: "all",
-    tag: "all"
+    tag: "all",
+    ranks: []
   }
 };
 
@@ -48,6 +49,7 @@ const els = {
   nationFilter: document.querySelector("#nationFilter"),
   typeFilter: document.querySelector("#typeFilter"),
   tagFilter: document.querySelector("#tagFilter"),
+  rankFilter: document.querySelector("#rankFilter"),
   countText: document.querySelector("#countText"),
   saveBtn: document.querySelector("#saveBtn"),
   loadBtn: document.querySelector("#loadBtn"),
@@ -206,6 +208,7 @@ function normalizeVehicle(item) {
     nation: cleanValue(item.nation),
     type: cleanValue(item.type),
     tag: cleanValue(item.tag || item.tags || "regular"),
+    rank: normalizeRank(item.rank || item.vehicle_rank || item.tier || item.rk || ""),
     image: pickImageValue(item),
     enabled: String(item.enabled || "TRUE").trim().toUpperCase()
   };
@@ -243,6 +246,73 @@ function populateFilters() {
   fillSelect(els.nationFilter, uniqueValues(vehicles, "nation"), "전체", formatNation);
   fillSelect(els.typeFilter, uniqueValues(vehicles, "type"), "전체", (value) => value || "미분류");
   fillSelect(els.tagFilter, uniqueValues(vehicles, "tag"), "전체", formatTag);
+  populateRankFilter(uniqueValues(vehicles, "rank"));
+}
+
+
+function populateRankFilter(ranks) {
+  els.rankFilter.innerHTML = "";
+
+  const validRanks = ranks.filter(Boolean).sort(compareRanks);
+  const allButton = document.createElement("button");
+  allButton.type = "button";
+  allButton.className = `rank-chip ${state.filters.ranks.length ? "" : "active"}`;
+  allButton.textContent = "전체";
+  allButton.addEventListener("click", () => {
+    state.filters.ranks = [];
+    populateRankFilter(validRanks);
+    render();
+  });
+  els.rankFilter.append(allButton);
+
+  if (!validRanks.length) {
+    const hint = document.createElement("span");
+    hint.className = "rank-hint";
+    hint.textContent = "시트에 rank 열을 추가하면 I~VIII 랭크 필터가 생겨.";
+    els.rankFilter.append(hint);
+    return;
+  }
+
+  validRanks.forEach((rank) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `rank-chip ${state.filters.ranks.includes(rank) ? "active" : ""}`;
+    button.textContent = formatRank(rank);
+    button.addEventListener("click", () => {
+      if (state.filters.ranks.includes(rank)) {
+        state.filters.ranks = state.filters.ranks.filter((item) => item !== rank);
+      } else {
+        state.filters.ranks = [...state.filters.ranks, rank].sort(compareRanks);
+      }
+      populateRankFilter(validRanks);
+      render();
+    });
+    els.rankFilter.append(button);
+  });
+}
+
+function normalizeRank(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const upper = raw.toUpperCase().replace(/^RANK\s*/i, "").trim();
+  const numberToRoman = {
+    "1": "I", "2": "II", "3": "III", "4": "IV", "5": "V",
+    "6": "VI", "7": "VII", "8": "VIII", "9": "IX", "10": "X"
+  };
+  return numberToRoman[upper] || upper;
+}
+
+function compareRanks(a, b) {
+  return rankOrder(a) - rankOrder(b) || String(a).localeCompare(String(b));
+}
+
+function rankOrder(rank) {
+  const order = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 };
+  return order[String(rank || "").toUpperCase()] || 999;
+}
+
+function formatRank(value) {
+  return value ? `Rank ${value}` : "";
 }
 
 function fillSelect(select, values, defaultText, labelFn) {
@@ -309,6 +379,7 @@ function matchesFilters(vehicle) {
   if (state.filters.nation !== "all" && vehicle.nation !== state.filters.nation) return false;
   if (state.filters.type !== "all" && vehicle.type !== state.filters.type) return false;
   if (state.filters.tag !== "all" && vehicle.tag !== state.filters.tag) return false;
+  if (state.filters.ranks.length && !state.filters.ranks.includes(vehicle.rank)) return false;
   return true;
 }
 
@@ -317,7 +388,7 @@ function createVehicleCard(vehicle) {
   node.dataset.id = vehicle.id;
   node.dataset.category = vehicle.category;
   node.querySelector(".vehicle-name").textContent = vehicle.name;
-  node.querySelector(".vehicle-sub").textContent = [formatNation(vehicle.nation), vehicle.type, formatTag(vehicle.tag)].filter(Boolean).join(" · ");
+  node.querySelector(".vehicle-sub").textContent = [formatNation(vehicle.nation), formatRank(vehicle.rank), vehicle.type, formatTag(vehicle.tag)].filter(Boolean).join(" · ");
 
   const image = node.querySelector(".vehicle-image");
   const imageUrl = normalizeImageUrl(vehicle.image);
@@ -482,7 +553,7 @@ function importJson(event) {
 }
 
 function resetFilters() {
-  state.filters = { search: "", nation: "all", type: "all", tag: "all" };
+  state.filters = { search: "", nation: "all", type: "all", tag: "all", ranks: [] };
   els.searchInput.value = "";
   els.nationFilter.value = "all";
   els.typeFilter.value = "all";

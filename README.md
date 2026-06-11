@@ -1,42 +1,27 @@
 # WT Tier Lab
 
-Google Sheets CSV 기반 War Thunder 티어메이커 MVP입니다.
+구글시트 CSV를 불러와서 워썬더 장비 티어표를 만드는 정적 웹사이트입니다.
 
-## 파일 구조
+## v1.4
 
-```txt
-index.html
-style.css
-script.js
-README.md
-```
+- `rank` 열 지원 추가
+- 랭크 다중 선택 필터 추가
+- 장비 카드 보조 정보에 랭크 표시
+- 링크 공유 미리보기용 Open Graph/Twitter Card 메타태그 추가
+- `preview.png` 추가
 
-## 구글시트 컬럼
+## 시트 컬럼
+
+권장 컬럼:
 
 ```csv
-id,name,category,nation,type,tag,image,enabled
+id,name,category,nation,type,tag,rank,image,enabled
 ```
 
-- `category`: ground / air / naval
-- `tag`: regular / premium / squadron / event
-- `enabled`: TRUE / FALSE
+`rank` 값은 `I`, `II`, `III`, `IV`, `V`, `VI`, `VII`, `VIII` 형식을 권장합니다. 숫자 `1~8`로 입력해도 사이트에서 자동으로 로마 숫자로 변환합니다.
 
-## GitHub Pages 배포
+`enabled`를 `FALSE`, `0`, `NO`, `N`으로 두면 사이트에서 숨겨집니다.
 
-1. GitHub 저장소 생성
-2. 위 파일 4개 업로드
-3. Settings → Pages
-4. Branch: `main`, Folder: `/root`
-5. Save
+## 배포
 
-배포 주소는 보통 아래 형태입니다.
-
-```txt
-https://사용자이름.github.io/저장소이름/
-```
-
-
-## v1.3
-- F 아래에 `Non` 제외 행 추가
-- 장비 카드를 우클릭하면 바로 `Non` 행으로 이동
-- 기존 저장 데이터에 `Non` 행이 없어도 자동 보정
+GitHub Pages에서 `main` 브랜치의 `/root`를 배포 대상으로 설정하면 됩니다.

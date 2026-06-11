@@ -4,6 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WT Tier Lab</title>
+  <meta name="description" content="구글시트 기반 워썬더 장비 티어표 제작기. 지상, 공중, 해상 장비를 필터링하고 드래그해서 티어표를 만들 수 있습니다." />
+  <meta name="theme-color" content="#111418" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="WT Tier Lab" />
+  <meta property="og:title" content="WT Tier Lab" />
+  <meta property="og:description" content="워썬더 장비 티어표를 만들고 친구들과 공유하는 구글시트 기반 티어메이커." />
+  <meta property="og:url" content="https://ninajalhe9.github.io/wt-tiermaker/" />
+  <meta property="og:image" content="https://ninajalhe9.github.io/wt-tiermaker/preview.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="WT Tier Lab" />
+  <meta name="twitter:description" content="워썬더 장비 티어표를 만들고 친구들과 공유하는 구글시트 기반 티어메이커." />
+  <meta name="twitter:image" content="https://ninajalhe9.github.io/wt-tiermaker/preview.png" />
+
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='44'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -52,6 +69,11 @@
             <option value="all">전체</option>
           </select>
         </label>
+      </div>
+
+      <div class="rank-filter-block">
+        <div class="rank-filter-title">랭크 필터</div>
+        <div id="rankFilter" class="rank-filter" aria-label="랭크 필터"></div>
       </div>
 
       <div class="mini-actions">
